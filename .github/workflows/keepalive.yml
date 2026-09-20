@@ -1,0 +1,48 @@
+name: Repository Keepalive
+
+on:
+  schedule:
+    # UTC 时间, 对应北京时间每月 1 日 10:00
+    - cron: '0 2 1 * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repo-keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Append keepalive record
+        run: |
+          TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          # 在表格分隔行(| --- | --- |)后插入本次执行记录
+          awk -v row="| ${TIME} | [#${GITHUB_RUN_ID}](${RUN_URL}) |" \
+            '{ print }
+             /^\|[[:space:]]*-{3,}[[:space:]]*\|[[:space:]]*-{3,}[[:space:]]*\|[[:space:]]*$/ && !inserted { print row; inserted=1 }' \
+            KEEPALIVE.md > KEEPALIVE.md.tmp && mv KEEPALIVE.md.tmp KEEPALIVE.md
+          if ! grep -q "${TIME}" KEEPALIVE.md; then
+            echo "::error::保活记录插入失败: 未找到表格分隔行"; exit 1
+          fi
+          echo "已写入保活记录: ${TIME}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add KEEPALIVE.md
+          if git diff --cached --quiet; then
+            echo "KEEPALIVE.md 无变化, 跳过提交"
+          else
+            git commit -m "chore: keepalive $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')"
+            git push
+          fi

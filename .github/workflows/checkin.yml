@@ -1,0 +1,59 @@
+name: AgentRouter Daily Check-in
+
+on:
+  schedule:
+    # UTC 时间, 对应北京时间每天 09:30
+    - cron: '30 1 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agentrouter-checkin
+  cancel-in-progress: false
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run check-in
+        env:
+          # 账号: 邮箱,密码:邮箱,密码;邮箱,密码 ... (可选第三段为备注)
+          AGENTROUTER_ACCOUNTS: ${{ secrets.AGENTROUTER_ACCOUNTS }}
+          # 通用可选配置
+          AGENTROUTER_BASE_URL: ${{ vars.AGENTROUTER_BASE_URL }}
+          AGENTROUTER_PROXY: ${{ secrets.AGENTROUTER_PROXY }}
+          AGENTROUTER_FORCE_IPV4: ${{ secrets.AGENTROUTER_FORCE_IPV4 }}
+          # ---- 多渠道推送通知(按需添加, 不用则不加对应 Secret) ----
+          WECOM_BOT_KEY: ${{ secrets.WECOM_BOT_KEY }}            # 企业微信机器人
+          DINGTALK_BOT_KEY: ${{ secrets.DINGTALK_BOT_KEY }}      # 钉钉机器人
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}        # 钉钉加签(可选)
+          FEISHU_BOT_KEY: ${{ secrets.FEISHU_BOT_KEY }}          # 飞书机器人
+          YUNHU_BOT_KEY: ${{ secrets.YUNHU_BOT_KEY }}            # 云湖机器人
+          SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}  # Server酱
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}          # PushPlus
+          PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}          # PushPlus 群组(可选)
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}              # Telegram Bot
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}                  # Telegram Chat ID
+          BARK_KEY: ${{ secrets.BARK_KEY }}                      # Bark (iOS)
+          BARK_GROUP: ${{ secrets.BARK_GROUP }}                  # Bark 分组(可选)
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}        # Discord Webhook
+          MAIL_HOST: ${{ secrets.MAIL_HOST }}                    # 邮箱 SMTP
+          MAIL_PORT: ${{ secrets.MAIL_PORT }}                    # SMTP 端口(可选, 默认 465)
+          MAIL_USER: ${{ secrets.MAIL_USER }}                    # 发件邮箱
+          MAIL_PASS: ${{ secrets.MAIL_PASS }}                    # SMTP 密码/授权码
+          MAIL_TO: ${{ secrets.MAIL_TO }}                        # 收件邮箱
+        run: python agentrouter_checkin.py
