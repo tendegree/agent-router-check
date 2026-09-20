@@ -1,4 +1,4 @@
-name: AgentRouter Daily Check-in
+name: AgentRouter 签到
 
 on:
   schedule:
