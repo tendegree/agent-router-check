@@ -29,6 +29,16 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Verify AGENTROUTER_ACCOUNTS secret
+        env:
+          AGENTROUTER_ACCOUNTS: ${{ secrets.AGENTROUTER_ACCOUNTS }}
+        run: |
+          if [ -z "$AGENTROUTER_ACCOUNTS" ]; then
+            echo "::error::Secret AGENTROUTER_ACCOUNTS 未配置或为空。请到仓库 Settings -> Secrets and variables -> Actions 添加, 格式: 邮箱,密码,别名;邮箱,密码,别名;..."
+            exit 1
+          fi
+          echo "Secret AGENTROUTER_ACCOUNTS 已配置"
+
       - name: Run check-in
         env:
           # 账号: 邮箱,密码,别名;邮箱,密码,别名;... (别名可选)

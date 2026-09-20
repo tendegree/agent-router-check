@@ -76,6 +76,12 @@ a@example.com,password1;b@example.com,password2;c@example.com,password3,主号
 
 > 注意：GitHub Actions 的 cron 依赖 GitHub 调度，高峰期可能有几分钟到半小时的延迟，属正常现象。仓库保活已由下方的 **Repository Keepalive** 工作流自动处理，无需人工干预。
 
+### 运行状态怎么看？
+
+- **Actions 绿勾 ≠ 签到成功**。签到结果以**通知消息**为准；脚本在签到失败时会以非零退出码结束，该次运行会显示 **红叉 ❌**；
+- 工作流内含 Secret 预检步骤：`AGENTROUTER_ACCOUNTS` 未配置或为空时，运行直接失败并在日志中给出 `::error::` 提示；
+- 收到「未检测到账号配置」通知，最常见原因是 **Secret 没配置或名称写错**，请到 `Settings` → `Secrets and variables` → `Actions` 确认存在名为 `AGENTROUTER_ACCOUNTS` 的 Secret（注意仓库 Secrets 与 Environment Secrets 的作用范围区别）。
+
 ## 🔄 仓库保活（Repository Keepalive）
 
 GitHub Actions 的定时任务在仓库 **60 天无提交**后会被自动停用。本项目自带保活工作流 [`.github/workflows/keepalive.yml`](.github/workflows/keepalive.yml)：

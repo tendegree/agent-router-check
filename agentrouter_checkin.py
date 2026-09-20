@@ -334,8 +334,11 @@ def main():
     accounts = collect_accounts()
     mask_github_actions(accounts)
     if not accounts:
-        safe_notify("[AgentRouter] 签到失败", "未检测到账号配置, 请检查环境变量")
-        return
+        safe_notify("[AgentRouter] 签到失败",
+                    "未检测到账号配置, 请检查环境变量\n"
+                    "(GitHub Actions: Settings -> Secrets and variables -> Actions\n"
+                    " 添加 Secret AGENTROUTER_ACCOUNTS, 格式: 邮箱,密码,别名;...)")
+        sys.exit(1)  # 非零退出码, 让 Actions 显示失败而非绿勾
 
     results = []
     for idx, acc in enumerate(accounts):
@@ -350,7 +353,7 @@ def main():
 
     if not results:
         safe_notify("[AgentRouter] 签到失败", "所有账号均未成功执行")
-        return
+        sys.exit(1)
 
     lines = []
     for r in results:
@@ -360,6 +363,12 @@ def main():
         lines.append(f"{tag} {r['name']}({who})：{r['message']} | 额度 {quota_str}")
     safe_notify("[AgentRouter] 签到汇总", "\n".join(lines))
     log("全部账号处理完毕")
+
+    # 有任何账号失败则以非零码退出, Actions 会标红, 避免误以为签到成功
+    fail_count = sum(1 for r in results if r["status"] != "success")
+    if fail_count:
+        log(f"{fail_count}/{len(results)} 个账号签到失败, 以非零码退出")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
