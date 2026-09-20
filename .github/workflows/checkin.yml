@@ -31,7 +31,7 @@ jobs:
 
       - name: Run check-in
         env:
-          # 账号: 邮箱,密码:邮箱,密码;邮箱,密码 ... (可选第三段为备注)
+          # 账号: 邮箱,密码,别名;邮箱,密码,别名;... (别名可选)
           AGENTROUTER_ACCOUNTS: ${{ secrets.AGENTROUTER_ACCOUNTS }}
           # 通用可选配置
           AGENTROUTER_BASE_URL: ${{ vars.AGENTROUTER_BASE_URL }}

@@ -18,11 +18,11 @@ AgentRouter 自动签到脚本 (GitHub Actions)
 ===== 配置方式 =====
 统一使用 AGENTROUTER_ACCOUNTS, 单账号多账号通用:
 
-  AGENTROUTER_ACCOUNTS  必填. 格式: 邮箱,密码:邮箱,密码;邮箱,密码 ...
-    - 账号之间用 : 或 ; 隔开, 邮箱与密码之间用 , 隔开
-    - 支持可选第三段作为备注名: 邮箱,密码,备注
-    例: a@x.com,pwdA:b@x.com,pwdB;甲@x.com,pwdC,主号
-    (密码中不要含 , : ; 分隔符)
+  AGENTROUTER_ACCOUNTS  必填. 格式: 邮箱,密码,别名;邮箱,密码,别名;...
+    - 账号之间用 ; 隔开, 邮箱/密码/别名之间用 , 隔开
+    - 别名为可选第三段, 用于通知中区分账号
+    例: a@x.com,pwdA;b@x.com,pwdB;甲@x.com,pwdC,主号
+    (密码中不要含 , ; 分隔符)
 
 ===== 推送通知 (可选) =====
 参考 tendegree/wj-atuo 的多渠道通知方式, 通过环境变量按需启用, 可同时开启多个:
@@ -276,19 +276,19 @@ def _result(name, status, message, username, quota):
 
 
 def collect_accounts():
-    """解析 AGENTROUTER_ACCOUNTS (格式: 邮箱,密码:邮箱,密码;邮箱,密码[,备注] ...)"""
+    """解析 AGENTROUTER_ACCOUNTS (格式: 邮箱,密码,别名;邮箱,密码,别名;... 别名可选)"""
     accounts = _parse_accounts_text(os.environ.get("AGENTROUTER_ACCOUNTS", "").strip())
     if accounts:
         log(f"已读取 AGENTROUTER_ACCOUNTS 配置, 共 {len(accounts)} 个账号")
     else:
-        log("未检测到有效账号配置: 请设置 AGENTROUTER_ACCOUNTS=邮箱,密码:邮箱,密码;...")
+        log("未检测到有效账号配置: 请设置 AGENTROUTER_ACCOUNTS=邮箱,密码,别名;...")
     return accounts
 
 
 def _parse_accounts_text(raw):
-    """解析 '邮箱,密码:邮箱,密码;邮箱,密码,...' 文本格式。"""
+    """解析 '邮箱,密码,别名;邮箱,密码,别名;...' 文本格式。"""
     accounts = []
-    for i, item in enumerate(re.split(r"[:;]", raw)):
+    for i, item in enumerate(raw.split(";")):
         item = item.strip()
         if not item:
             continue
@@ -298,7 +298,7 @@ def _parse_accounts_text(raw):
             or "@" not in parts[0] or parts[0].startswith(("[", "{"))
         ):
             # 安全: 不打印账号原文, 避免日志泄露邮箱/密码
-            log(f"第 {i + 1} 个账号格式无效(应为 邮箱,密码[,备注]), 已跳过")
+            log(f"第 {i + 1} 个账号格式无效(应为 邮箱,密码[,别名]), 已跳过")
             continue
         accounts.append({
             "name": parts[2] if len(parts) > 2 and parts[2] else f"账号{i + 1}",

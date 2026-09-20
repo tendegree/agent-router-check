@@ -27,25 +27,23 @@
 
 #### `AGENTROUTER_ACCOUNTS`（必需）
 
-单账号/多账号通用，格式：**`邮箱,密码:邮箱,密码;邮箱,密码`**
+单账号/多账号通用，格式：**`邮箱,密码,别名;邮箱,密码,别名;...`**
 
-- 账号之间用 `:` 或 `;` 隔开，邮箱与密码之间用 `,` 隔开；
-- 支持可选第三段作为备注名（用于通知中区分账号）：`邮箱,密码,备注`；
-- ⚠️ 密码中请勿包含 `,` `:` `;` 分隔符。
+- 不同账号之间用 `;` 隔开，邮箱/密码/别名之间用 `,` 隔开；
+- 别名（第三段）可选，用于在通知中区分账号；
+- ⚠️ 密码中请勿包含 `,` `;` 分隔符。
 
-格式示例（3 个账号，其中第 3 个带备注）：
+格式示例（3 个账号，其中第 3 个带别名）：
 
 ```
-a@example.com,password1
-b@example.com,password2
-c@example.com,password3,主号
+a@example.com,password1;b@example.com,password2;c@example.com,password3,主号
 ```
 
 ### 📋 所有可配置变量总表
 
 | 变量 | 配置类型 | 必填 | 说明 |
 |---|---|---|---|
-| `AGENTROUTER_ACCOUNTS` | Secret | ✅ | 账号列表，格式 `邮箱,密码:邮箱,密码;邮箱,密码`，第三段可选备注名 |
+| `AGENTROUTER_ACCOUNTS` | Secret | ✅ | 账号列表，格式 `邮箱,密码,别名;邮箱,密码,别名;...`，别名可选 |
 | `AGENTROUTER_BASE_URL` | Variable | 可选 | 站点地址，默认 `https://agentrouter.org`，备用 `https://ps.air-outer.com` |
 | `AGENTROUTER_PROXY` | Secret | 可选 | 无法直连时填代理，如 `http://127.0.0.1:10808`（支持 URL 内嵌凭据，日志中会脱敏） |
 | `AGENTROUTER_FORCE_IPV4` | Secret | 可选 | 容器有 IPv6 但无路由导致 `Network unreachable` 时，设为 `1` 强制走 IPv4 |
