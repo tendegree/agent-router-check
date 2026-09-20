@@ -134,6 +134,58 @@ def extract_quota(payload):
     return None
 
 
+# ===================== 阿里云 WAF 对抗 =====================
+def solve_acw_sc_v2(html):
+    """识别阿里云 WAF 的 acw_sc__v2 JS 挑战页并计算 cookie 值。
+
+    挑战页特征: 正文含 arg1='<40位十六进制>'; 计算方法是按固定置换表
+    把 arg1 字符填入掩码串的对应位置。识别失败返回 None。
+    """
+    m = re.search(r"""arg1\s*=\s*['"]([0-9A-Fa-f]{40})['"]""", html)
+    if not m:
+        return None
+    arg1 = m.group(1)
+    pos_list = [15, 35, 29, 24, 33, 16, 1, 38, 10, 9, 19, 31, 40, 27, 22,
+                23, 25, 13, 6, 11, 39, 18, 20, 8, 14, 21, 32, 26, 2, 30,
+                7, 4, 17, 5, 3, 28, 34, 37, 12, 36]
+    mask = "3000176000856006061501533003690027800375"
+    out = list(mask)
+    for i, ch in enumerate(arg1):
+        out[pos_list[i] - 1] = ch
+    return "".join(out)
+
+
+def waf_friendly_request(session, method, url, attempts=4, **kwargs):
+    """带 WAF 预热与重试的请求。
+
+    站点前端是阿里云 WAF: 对可疑 IP(如 CI 机房)会在首次请求时下发 HTML
+    挑战页(acw_tc cookie / acw_sc__v2 JS 挑战)。策略:
+      1. 先 GET 登录页预热, 拿 acw_tc 等 cookie;
+      2. 响应为 HTML 时, 若含 arg1= 挑战则计算 acw_sc__v2 写入 cookie 重试;
+      3. 逐次退避重试, 仍失败返回最后一次 HTML 响应。
+    返回最终 Response(调用方自行判断 Content-Type)。
+    """
+    last_html = None
+    for attempt in range(1, attempts + 1):
+        try:
+            if method.upper() == "GET":
+                r = session.get(url, **kwargs)
+            else:
+                r = session.post(url, **kwargs)
+        except Exception:
+            raise
+        if "text/html" not in r.headers.get("Content-Type", ""):
+            return r
+        last_html = r
+        log(f"WAF 拦截(第 {attempt}/{attempts} 次), 尝试破解挑战...")
+        v2 = solve_acw_sc_v2(r.text)
+        if v2:
+            session.cookies.set("acw_sc__v2", v2)
+            log("已计算 acw_sc__v2 挑战 cookie, 重试请求")
+        time.sleep(min(2 * attempt, 6))
+    return last_html
+
+
 # ===================== 账号密码登录 =====================
 def password_login(account):
     name = account.get("name", "默认账号")
@@ -153,15 +205,24 @@ def password_login(account):
     })
     site.proxies = PROXIES
 
+    # 预热: 先访问登录页, 拿 WAF 下发的 acw_tc 等 cookie
     try:
-        r = site.post(f"{BASE_URL}{LOGIN_PATH}",
-                      json={"username": email, "password": password},
-                      timeout=TIMEOUT)
+        site.get(f"{BASE_URL}/login", timeout=TIMEOUT)
+    except Exception as e:
+        log(f"预热请求失败(不影响签到): {sanitize(e)}")
+
+    try:
+        r = waf_friendly_request(site, "POST", f"{BASE_URL}{LOGIN_PATH}",
+                                 json={"username": email, "password": password},
+                                 timeout=TIMEOUT)
     except Exception as e:
         return _result(name, "fail", f"登录请求异常: {sanitize(e)}", None, None)
 
-    if "text/html" in r.headers.get("Content-Type", ""):
-        return _result(name, "fail", "登录接口返回 HTML(可能被 WAF 拦截或路径变化)", None, None)
+    if r is None or "text/html" in r.headers.get("Content-Type", ""):
+        return _result(name, "fail",
+                       "登录接口多次被 WAF 拦截返回 HTML。建议: 1) 改用备用域名 "
+                       "AGENTROUTER_BASE_URL=https://ps.air-outer.com 重试; "
+                       "2) 配置干净 IP 的 AGENTROUTER_PROXY", None, None)
 
     try:
         j = r.json()
@@ -211,12 +272,12 @@ def verify_checkin(session, uid, slack_new=300, window_days=1):
     if not uid:
         return "error", "缺少 uid, 跳过日志核验", None, None
     try:
-        r = session.get(f"{BASE_URL}{SELF_LOG_PATH}",
-                        params={"p": 1, "page_size": 20},
-                        headers={SELF_LOG_HEADER: str(uid)},
-                        timeout=TIMEOUT)
-        if r.status_code != 200 or "text/html" in r.headers.get("Content-Type", ""):
-            return "error", f"日志接口返回 HTTP {r.status_code}", None, None
+        r = waf_friendly_request(session, "GET", f"{BASE_URL}{SELF_LOG_PATH}",
+                                 params={"p": 1, "page_size": 20},
+                                 headers={SELF_LOG_HEADER: str(uid)},
+                                 timeout=TIMEOUT)
+        if r is None or r.status_code != 200 or "text/html" in r.headers.get("Content-Type", ""):
+            return "error", f"日志接口返回 HTTP {getattr(r, 'status_code', '?')}(可能被 WAF 拦截)", None, None
         items = (r.json().get("data") or {}).get("items") or []
     except Exception as e:
         return "error", f"日志查询异常: {sanitize(e)}", None, None
